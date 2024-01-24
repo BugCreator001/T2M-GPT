@@ -1,5 +1,5 @@
-clip_text = ["crawl/NOUN Slowly/ADV Forward/ADV No/DET turning/NOUN"]
-
+clip_text = ["pick up stoop Medium speed Forward No turning"]
+clip_text = ["hands on head turn Fast Forward right Turn right"]
 
 
 import sys
@@ -12,7 +12,7 @@ args.resume_pth = 'output_vqfinal/exp_debug/saved_net_200000.pth'
 args.resume_trans = 'output_GPT_Final/exp_debug/net_last.pth'
 args.down_t = 2
 args.depth = 3
-args.block_size = 25
+args.block_size = 52
 import clip
 import torch
 import numpy as np

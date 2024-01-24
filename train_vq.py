@@ -1,5 +1,7 @@
 import os
 import json
+# import numpy as np
+# from os.path import join as pjoin
 
 import torch
 import torch.optim as optim
@@ -99,6 +101,12 @@ scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=args.lr_s
 
 Loss = losses.ReConsLoss(args.recons_loss, args.nb_joints)
 
+# motion_dir = './dataset/wMIB/data'
+# f = np.load(pjoin(motion_dir, 'Mean.npz'), allow_pickle=True)
+# mean = f['mean']
+# f2 = np.load(pjoin(motion_dir, 'Std.npz'), allow_pickle=True)
+# std = f2['std']
+
 ##### ------ warm-up ------- #####
 avg_recons, avg_perplexity, avg_commit = 0., 0., 0.
 
@@ -107,6 +115,7 @@ for nb_iter in range(1, args.warm_up_iter):
     optimizer, current_lr = update_lr_warm_up(optimizer, nb_iter, args.warm_up_iter, args.lr)
     
     gt_motion = next(train_loader_iter)
+    # save_motion_to_bvh_file('./motion.bvh', gt_motion[0].numpy() * std + mean)
     gt_motion = gt_motion.cuda().float() # (bs, 64, dim)
 
     pred_motion, loss_commit, perplexity = net(gt_motion)

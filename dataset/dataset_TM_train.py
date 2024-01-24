@@ -52,7 +52,7 @@ class Text2MotionDataset(data.Dataset):
             self.text_dir = pjoin(self.data_root, 'data')
             self.joints_num = 31
 
-            self.max_motion_length = 25
+            self.max_motion_length = 51
             fps = 60
 
         split_file = pjoin(self.data_root, 'train.txt')
@@ -141,6 +141,8 @@ class Text2MotionDataset(data.Dataset):
                         'm_token_list': m_token_list,
                         'text': [text_dict]
                     }
+
+                    print(text_dict['caption'])
                 except:
                     pass
 

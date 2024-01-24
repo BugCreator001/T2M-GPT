@@ -19,6 +19,8 @@ import models.t2m_trans as trans
 from options.get_eval_option import get_opt
 from models.evaluator_wrapper import EvaluatorModelWrapper
 import warnings
+from tqdm import tqdm
+
 warnings.filterwarnings('ignore')
 
 ##### ---- Exp dirs ---- #####
@@ -26,7 +28,10 @@ args = option_trans.get_args_parser()
 torch.manual_seed(args.seed)
 
 args.out_dir = os.path.join(args.out_dir, f'{args.exp_name}')
-args.vq_dir= os.path.join("./dataset/KIT-ML" if args.dataname == 'kit' else "./dataset/HumanML3D", f'{args.vq_name}')
+if args.dataname in ['t2m', 'kit']:
+    args.vq_dir= os.path.join("./dataset/KIT-ML" if args.dataname == 'kit' else "./dataset/HumanML3D", f'{args.vq_name}')
+else:
+    args.vq_dir = os.path.join("./dataset/wMIB", f'{args.vq_name}')
 os.makedirs(args.out_dir, exist_ok = True)
 os.makedirs(args.vq_dir, exist_ok = True)
 
@@ -40,12 +45,12 @@ train_loader_token = dataset_tokenize.DATALoader(args.dataname, 1, unit_length=2
 
 from utils.word_vectorizer import WordVectorizer
 w_vectorizer = WordVectorizer('./glove', 'our_vab')
-val_loader = dataset_TM_eval.DATALoader(args.dataname, False, 32, w_vectorizer)
+#val_loader = dataset_TM_eval.DATALoader(args.dataname, False, 32, w_vectorizer)
 
-dataset_opt_path = 'checkpoints/kit/Comp_v6_KLD005/opt.txt' if args.dataname == 'kit' else 'checkpoints/t2m/Comp_v6_KLD005/opt.txt'
+#dataset_opt_path = 'checkpoints/kit/Comp_v6_KLD005/opt.txt' if args.dataname == 'kit' else 'checkpoints/t2m/Comp_v6_KLD005/opt.txt'
 
-wrapper_opt = get_opt(dataset_opt_path, torch.device('cuda'))
-eval_wrapper = EvaluatorModelWrapper(wrapper_opt)
+#wrapper_opt = get_opt(dataset_opt_path, torch.device('cuda'))
+#eval_wrapper = EvaluatorModelWrapper(wrapper_opt)
 
 ##### ---- Network ---- #####
 clip_model, clip_preprocess = clip.load("ViT-B/32", device=torch.device('cuda'), jit=False)  # Must set jit=False for training
@@ -77,8 +82,8 @@ trans_encoder = trans.Text2Motion_Transformer(num_vq=args.nb_code,
 
 print ('loading checkpoint from {}'.format(args.resume_pth))
 ckpt = torch.load(args.resume_pth, map_location='cpu')
-net.load_state_dict(ckpt['net'], strict=True)
-net.eval()
+net.load_state_dict(ckpt['net'], strict=False)
+# net.eval()
 net.cuda()
 
 if args.resume_trans is not None:
@@ -115,9 +120,9 @@ train_loader_iter = dataset_TM_train.cycle(train_loader)
 
         
 ##### ---- Training ---- #####
-best_fid, best_iter, best_div, best_top1, best_top2, best_top3, best_matching, writer, logger = eval_trans.evaluation_transformer(args.out_dir, val_loader, net, trans_encoder, logger, writer, 0, best_fid=1000, best_iter=0, best_div=100, best_top1=0, best_top2=0, best_top3=0, best_matching=100, clip_model=clip_model, eval_wrapper=eval_wrapper)
-while nb_iter <= args.total_iter:
-    
+# best_fid, best_iter, best_div, best_top1, best_top2, best_top3, best_matching, writer, logger = eval_trans.evaluation_transformer(args.out_dir, val_loader, net, trans_encoder, logger, writer, 0, best_fid=1000, best_iter=0, best_div=100, best_top1=0, best_top2=0, best_top3=0, best_matching=100, clip_model=clip_model, eval_wrapper=eval_wrapper)
+for nb_iter in tqdm(range(1, args.total_iter + 1), desc='Training'):
+
     batch = next(train_loader_iter)
     clip_text, m_tokens, m_tokens_len = batch
     m_tokens, m_tokens_len = m_tokens.cuda(), m_tokens_len.cuda()
@@ -170,8 +175,7 @@ while nb_iter <= args.total_iter:
     avg_loss_cls = avg_loss_cls + loss_cls.item()
     nb_sample_train = nb_sample_train + (m_tokens_len + 1).sum().item()
 
-    nb_iter += 1
-    if nb_iter % args.print_iter ==  0 :
+    if nb_iter % args.print_iter == 0:
         avg_loss_cls = avg_loss_cls / args.print_iter
         avg_acc = right_num * 100 / nb_sample_train
         writer.add_scalar('./Loss/train', avg_loss_cls, nb_iter)
@@ -182,10 +186,13 @@ while nb_iter <= args.total_iter:
         right_num = 0
         nb_sample_train = 0
 
-    if nb_iter % args.eval_iter ==  0:
-        best_fid, best_iter, best_div, best_top1, best_top2, best_top3, best_matching, writer, logger = eval_trans.evaluation_transformer(args.out_dir, val_loader, net, trans_encoder, logger, writer, nb_iter, best_fid, best_iter, best_div, best_top1, best_top2, best_top3, best_matching, clip_model=clip_model, eval_wrapper=eval_wrapper)
+    #if nb_iter % args.eval_iter ==  0:
+    #    best_fid, best_iter, best_div, best_top1, best_top2, best_top3, best_matching, writer, logger = eval_trans.evaluation_transformer(args.out_dir, val_loader, net, trans_encoder, logger, writer, nb_iter, best_fid, best_iter, best_div, best_top1, best_top2, best_top3, best_matching, clip_model=clip_model, eval_wrapper=eval_wrapper)
 
-    if nb_iter == args.total_iter: 
-        msg_final = f"Train. Iter {best_iter} : FID. {best_fid:.5f}, Diversity. {best_div:.4f}, TOP1. {best_top1:.4f}, TOP2. {best_top2:.4f}, TOP3. {best_top3:.4f}"
-        logger.info(msg_final)
-        break            
+    #if nb_iter == args.total_iter:
+    #    msg_final = f"Train. Iter {best_iter} : FID. {best_fid:.5f}, Diversity. {best_div:.4f}, TOP1. {best_top1:.4f}, TOP2. {best_top2:.4f}, TOP3. {best_top3:.4f}"
+    #    logger.info(msg_final)
+    #    break
+
+
+torch.save({'net': trans_encoder.state_dict()}, os.path.join(args.out_dir, 'net_last.pth'))

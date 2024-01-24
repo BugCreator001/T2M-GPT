@@ -39,43 +39,78 @@ class VQMotionDataset(data.Dataset):
             self.max_motion_length = 196
             self.meta_dir = 'checkpoints/kit/VQVAEV3_CB1024_CMT_H1024_NRES3/meta'
             #kinematic_chain = paramUtil.kit_kinematic_chain
+        elif dataset_name == 'wmib':
+            self.data_root = './dataset/wMIB'
+            self.motion_dir = pjoin(self.data_root, 'data')
+            self.text_dir = pjoin(self.data_root, 'data')
+            self.joints_num = 31
+
+            self.max_motion_length = 196
+            fps = 60
         
         joints_num = self.joints_num
 
-        mean = np.load(pjoin(self.meta_dir, 'mean.npy'))
-        std = np.load(pjoin(self.meta_dir, 'std.npy'))
-        
-        split_file = pjoin(self.data_root, 'train.txt')
-        
-        data_dict = {}
-        id_list = []
-        with cs.open(split_file, 'r') as f:
-            for line in f.readlines():
-                id_list.append(line.strip())
+        if dataset_name in ['t2m', 'kit']:
+            mean = np.load(pjoin(self.meta_dir, 'mean.npy'))
+            std = np.load(pjoin(self.meta_dir, 'std.npy'))
 
-        new_name_list = []
-        length_list = []
-        for name in tqdm(id_list):
-            try:
-                motion = np.load(pjoin(self.motion_dir, name + '.npy'))
-                if (len(motion)) < min_motion_len or (len(motion) >= 200):
-                    continue
+            split_file = pjoin(self.data_root, 'train.txt')
 
-                data_dict[name] = {'motion': motion,
-                                   'length': len(motion),
-                                   'name': name}
-                new_name_list.append(name)
-                length_list.append(len(motion))
-            except:
-                # Some motion may not exist in KIT dataset
-                pass
+            data_dict = {}
+            id_list = []
+            with cs.open(split_file, 'r') as f:
+                for line in f.readlines():
+                    id_list.append(line.strip())
+
+            new_name_list = []
+            length_list = []
+            for name in tqdm(id_list):
+                try:
+                    motion = np.load(pjoin(self.motion_dir, name + '.npy'))
+                    if (len(motion)) < min_motion_len or (len(motion) >= 200):
+                        continue
+
+                    data_dict[name] = {'motion': motion,
+                                       'length': len(motion),
+                                       'name': name}
+                    new_name_list.append(name)
+                    length_list.append(len(motion))
+                except:
+                    # Some motion may not exist in KIT dataset
+                    pass
 
 
-        self.mean = mean
-        self.std = std
-        self.length_arr = np.array(length_list)
-        self.data_dict = data_dict
-        self.name_list = new_name_list
+            self.mean = mean
+            self.std = std
+            self.length_arr = np.array(length_list)
+            self.data_dict = data_dict
+            self.name_list = new_name_list
+
+        else:
+            self.data_dict = {}
+            self.length_arr = []
+            with np.load(pjoin(self.motion_dir, 'motion_data.npz'), allow_pickle=True) as motion_data:
+                self.motion_dict = dict(motion_data.items())
+            names = np.load(pjoin(self.motion_dir, 'motion_name.npz'), allow_pickle=True)
+            self.name_list = names['new_name_list']
+
+            for _, name in tqdm(enumerate(self.name_list), desc='Loading motion segments',
+                                total=len(self.name_list)):
+                motion_data = self.motion_dict[name].item()
+
+                length = motion_data['length']
+                self.data_dict[name] = {
+                    'motion': motion_data['motion'],
+                    'length': length,
+                    'name': name
+                }
+                self.length_arr.append(motion_data['length'])
+
+            f = np.load(pjoin(self.motion_dir, 'Mean.npz'), allow_pickle=True)
+            self.mean = f['mean']
+            f2 = np.load(pjoin(self.motion_dir, 'Std.npz'), allow_pickle=True)
+            self.std = f2['std']
+
 
     def inv_transform(self, data):
         return data * self.std + self.mean

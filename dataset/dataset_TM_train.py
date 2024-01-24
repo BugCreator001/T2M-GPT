@@ -46,64 +46,104 @@ class Text2MotionDataset(data.Dataset):
             dim_pose = 251
             self.max_motion_length = 26 if unit_length == 8 else 51
             kinematic_chain = paramUtil.kit_kinematic_chain
+        else:
+            self.data_root = './dataset/wMIB'
+            self.motion_dir = pjoin(self.data_root, 'data')
+            self.text_dir = pjoin(self.data_root, 'data')
+            self.joints_num = 31
+
+            self.max_motion_length = 25
+            fps = 60
 
         split_file = pjoin(self.data_root, 'train.txt')
 
+        if dataset_name in ['t2m', 'kit']:
+            id_list = []
+            with cs.open(split_file, 'r') as f:
+                for line in f.readlines():
+                    id_list.append(line.strip())
 
-        id_list = []
-        with cs.open(split_file, 'r') as f:
-            for line in f.readlines():
-                id_list.append(line.strip())
+            new_name_list = []
+            data_dict = {}
+            for name in tqdm(id_list):
+                try:
+                    m_token_list = np.load(pjoin(self.data_root, tokenizer_name, '%s.npy'%name))
 
-        new_name_list = []
-        data_dict = {}
-        for name in tqdm(id_list):
-            try:
-                m_token_list = np.load(pjoin(self.data_root, tokenizer_name, '%s.npy'%name))
+                    # Read text
+                    with cs.open(pjoin(self.text_dir, name + '.txt')) as f:
+                        text_data = []
+                        flag = False
+                        lines = f.readlines()
 
-                # Read text
-                with cs.open(pjoin(self.text_dir, name + '.txt')) as f:
-                    text_data = []
-                    flag = False
-                    lines = f.readlines()
+                        for line in lines:
+                            try:
+                                text_dict = {}
+                                line_split = line.strip().split('#')
+                                caption = line_split[0]
+                                t_tokens = line_split[1].split(' ')
+                                f_tag = float(line_split[2])
+                                to_tag = float(line_split[3])
+                                f_tag = 0.0 if np.isnan(f_tag) else f_tag
+                                to_tag = 0.0 if np.isnan(to_tag) else to_tag
 
-                    for line in lines:
-                        try:
-                            text_dict = {}
-                            line_split = line.strip().split('#')
-                            caption = line_split[0]
-                            t_tokens = line_split[1].split(' ')
-                            f_tag = float(line_split[2])
-                            to_tag = float(line_split[3])
-                            f_tag = 0.0 if np.isnan(f_tag) else f_tag
-                            to_tag = 0.0 if np.isnan(to_tag) else to_tag
+                                text_dict['caption'] = caption
+                                text_dict['tokens'] = t_tokens
+                                if f_tag == 0.0 and to_tag == 0.0:
+                                    flag = True
+                                    text_data.append(text_dict)
+                                else:
+                                    m_token_list_new = [tokens[int(f_tag*fps/unit_length) : int(to_tag*fps/unit_length)] for tokens in m_token_list if int(f_tag*fps/unit_length) < int(to_tag*fps/unit_length)]
 
-                            text_dict['caption'] = caption
-                            text_dict['tokens'] = t_tokens
-                            if f_tag == 0.0 and to_tag == 0.0:
-                                flag = True
-                                text_data.append(text_dict)
-                            else:
-                                m_token_list_new = [tokens[int(f_tag*fps/unit_length) : int(to_tag*fps/unit_length)] for tokens in m_token_list if int(f_tag*fps/unit_length) < int(to_tag*fps/unit_length)]
+                                    if len(m_token_list_new) == 0:
+                                        continue
+                                    new_name = '%s_%f_%f'%(name, f_tag, to_tag)
 
-                                if len(m_token_list_new) == 0:
-                                    continue
-                                new_name = '%s_%f_%f'%(name, f_tag, to_tag)
+                                    data_dict[new_name] = {'m_token_list': m_token_list_new,
+                                                           'text':[text_dict]}
+                                    new_name_list.append(new_name)
+                            except:
+                                pass
 
-                                data_dict[new_name] = {'m_token_list': m_token_list_new,
-                                                       'text':[text_dict]}
-                                new_name_list.append(new_name)
-                        except:
-                            pass
+                    if flag:
+                        data_dict[name] = {'m_token_list': m_token_list,
+                                           'text':text_data}
+                        new_name_list.append(name)
+                except:
+                    pass
+            self.data_dict = data_dict
+            self.name_list = new_name_list
 
-                if flag:
-                    data_dict[name] = {'m_token_list': m_token_list,
-                                       'text':text_data}
-                    new_name_list.append(name)
-            except:
-                pass
-        self.data_dict = data_dict
-        self.name_list = new_name_list
+        elif dataset_name == 'wmib':
+            self.data_dict = {}
+            with np.load(pjoin(self.motion_dir, 'motion_data.npz'), allow_pickle=True) as motion_data:
+                self.motion_dict = dict(motion_data.items())
+            names = np.load(pjoin(self.motion_dir, 'motion_name.npz'), allow_pickle=True)
+            self.name_list = list(names['new_name_list'])
+
+            for _, name in tqdm(enumerate(self.name_list), desc='Loading motion segments',
+                                total=len(self.name_list)):
+
+                motion_data = self.motion_dict[name].item()
+
+                #if(motion_data['length'] < 64):
+                #    print(name)
+                #    self.name_list.remove(name)
+                #    continue
+
+                try:
+                    m_token_list = np.load(pjoin(self.data_root, tokenizer_name, '%s.npy' % name))
+
+                    text_dict = {}
+                    text_dict['caption'] = ' '.join(motion_data['desc'])
+                    text_dict['tokens'] = motion_data['text']
+
+                    self.data_dict[name] = {
+                        'm_token_list': m_token_list,
+                        'text': [text_dict]
+                    }
+                except:
+                    pass
+
 
     def __len__(self):
         return len(self.data_dict)

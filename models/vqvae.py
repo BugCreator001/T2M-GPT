@@ -21,8 +21,15 @@ class VQVAE_251(nn.Module):
         self.code_dim = code_dim
         self.num_code = nb_code
         self.quant = args.quantizer
-        self.encoder = Encoder(251 if args.dataname == 'kit' else 263, output_emb_width, down_t, stride_t, width, depth, dilation_growth_rate, activation=activation, norm=norm)
-        self.decoder = Decoder(251 if args.dataname == 'kit' else 263, output_emb_width, down_t, stride_t, width, depth, dilation_growth_rate, activation=activation, norm=norm)
+
+        dataset_width = {
+            'kit': 251,
+            't2m': 263,
+            'wmib': 189
+        }
+
+        self.encoder = Encoder(dataset_width[args.dataname], output_emb_width, down_t, stride_t, width, depth, dilation_growth_rate, activation=activation, norm=norm)
+        self.decoder = Decoder(dataset_width[args.dataname], output_emb_width, down_t, stride_t, width, depth, dilation_growth_rate, activation=activation, norm=norm)
         if args.quantizer == "ema_reset":
             self.quantizer = QuantizeEMAReset(nb_code, code_dim, args)
         elif args.quantizer == "orig":
@@ -41,7 +48,7 @@ class VQVAE_251(nn.Module):
 
     def postprocess(self, x):
         # (bs, Jx3, T) ->  (bs, T, Jx3)
-        x = x.permute(0,2,1)
+        x = x.permute(0, 2, 1)
         return x
 
 
@@ -97,8 +104,14 @@ class HumanVQVAE(nn.Module):
                  norm=None):
         
         super().__init__()
-        
-        self.nb_joints = 21 if args.dataname == 'kit' else 22
+
+        if args.dataname == 'kit':
+            self.nb_joints = 21
+        elif args.dataname == 'wmib':
+            self.nb_joints = 31
+        else:
+            self.nb_joints = 22
+
         self.vqvae = VQVAE_251(args, nb_code, code_dim, output_emb_width, down_t, stride_t, width, depth, dilation_growth_rate, activation=activation, norm=norm)
 
     def encode(self, x):

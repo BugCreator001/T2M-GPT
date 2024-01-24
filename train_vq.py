@@ -17,6 +17,8 @@ import warnings
 warnings.filterwarnings('ignore')
 from utils.word_vectorizer import WordVectorizer
 
+from convert_to_bvh import save_motion_to_bvh_file
+
 def update_lr_warm_up(optimizer, nb_iter, warm_up_iter, lr):
 
     current_lr = lr * (nb_iter + 1) / (warm_up_iter + 1)
@@ -37,22 +39,22 @@ logger = utils_model.get_logger(args.out_dir)
 writer = SummaryWriter(args.out_dir)
 logger.info(json.dumps(vars(args), indent=4, sort_keys=True))
 
-
-
 w_vectorizer = WordVectorizer('./glove', 'our_vab')
 
-if args.dataname == 'kit' : 
+if args.dataname == 'kit':
     dataset_opt_path = 'checkpoints/kit/Comp_v6_KLD005/opt.txt'  
     args.nb_joints = 21
-    
+elif args.dataname == 'wmib':
+    dataset_opt_path = 'dataset/wMIB/opt.txt'
+    args.nb_joints = 31
 else :
     dataset_opt_path = 'checkpoints/t2m/Comp_v6_KLD005/opt.txt'
     args.nb_joints = 22
 
 logger.info(f'Training on {args.dataname}, motions are with {args.nb_joints} joints')
 
-wrapper_opt = get_opt(dataset_opt_path, torch.device('cuda'))
-eval_wrapper = EvaluatorModelWrapper(wrapper_opt)
+#wrapper_opt = get_opt(dataset_opt_path, torch.device('cuda'))
+#eval_wrapper = EvaluatorModelWrapper(wrapper_opt)
 
 
 ##### ---- Dataloader ---- #####
@@ -63,10 +65,11 @@ train_loader = dataset_VQ.DATALoader(args.dataname,
 
 train_loader_iter = dataset_VQ.cycle(train_loader)
 
-val_loader = dataset_TM_eval.DATALoader(args.dataname, False,
-                                        32,
-                                        w_vectorizer,
-                                        unit_length=2**args.down_t)
+# Evaluation, not use currently
+#val_loader = dataset_TM_eval.DATALoader(args.dataname, False,
+#                                        32,
+#                                        w_vectorizer,
+#                                        unit_length=2**args.down_t)
 
 ##### ---- Network ---- #####
 net = vqvae.HumanVQVAE(args, ## use args to define different parameters in different quantizers
@@ -131,7 +134,7 @@ for nb_iter in range(1, args.warm_up_iter):
 
 ##### ---- Training ---- #####
 avg_recons, avg_perplexity, avg_commit = 0., 0., 0.
-best_fid, best_iter, best_div, best_top1, best_top2, best_top3, best_matching, writer, logger = eval_trans.evaluation_vqvae(args.out_dir, val_loader, net, logger, writer, 0, best_fid=1000, best_iter=0, best_div=100, best_top1=0, best_top2=0, best_top3=0, best_matching=100, eval_wrapper=eval_wrapper)
+#best_fid, best_iter, best_div, best_top1, best_top2, best_top3, best_matching, writer, logger = eval_trans.evaluation_vqvae(args.out_dir, val_loader, net, logger, writer, 0, best_fid=1000, best_iter=0, best_div=100, best_top1=0, best_top2=0, best_top3=0, best_matching=100, eval_wrapper=eval_wrapper)
 
 for nb_iter in range(1, args.total_iter + 1):
     
@@ -166,6 +169,8 @@ for nb_iter in range(1, args.total_iter + 1):
         
         avg_recons, avg_perplexity, avg_commit = 0., 0., 0.,
 
-    if nb_iter % args.eval_iter==0 :
-        best_fid, best_iter, best_div, best_top1, best_top2, best_top3, best_matching, writer, logger = eval_trans.evaluation_vqvae(args.out_dir, val_loader, net, logger, writer, nb_iter, best_fid, best_iter, best_div, best_top1, best_top2, best_top3, best_matching, eval_wrapper=eval_wrapper)
-        
+    #if nb_iter % args.eval_iter==0 :
+    #    best_fid, best_iter, best_div, best_top1, best_top2, best_top3, best_matching, writer, logger = eval_trans.evaluation_vqvae(args.out_dir, val_loader, net, logger, writer, nb_iter, best_fid, best_iter, best_div, best_top1, best_top2, best_top3, best_matching, eval_wrapper=eval_wrapper)
+
+    if nb_iter % args.save_iter == 0:
+        torch.save({'net': net.state_dict()}, os.path.join(args.out_dir, f'saved_net_{nb_iter}.pth'))

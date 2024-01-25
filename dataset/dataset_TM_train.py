@@ -120,6 +120,9 @@ class Text2MotionDataset(data.Dataset):
             names = np.load(pjoin(self.motion_dir, 'motion_name.npz'), allow_pickle=True)
             self.name_list = list(names['new_name_list'])
 
+            with np.load(pjoin(self.data_root, tokenizer_name, 'code_data.npz'), allow_pickle=True) as code:
+                m_token_list = dict(code.items())
+
             for _, name in tqdm(enumerate(self.name_list), desc='Loading motion segments',
                                 total=len(self.name_list)):
 
@@ -131,18 +134,21 @@ class Text2MotionDataset(data.Dataset):
                 #    continue
 
                 try:
-                    m_token_list = np.load(pjoin(self.data_root, tokenizer_name, '%s.npy' % name))
+                    #m_token_list = np.load(pjoin(self.data_root, tokenizer_name, '%s.npy' % name))
+                    #print('m_token_list:', m_token_list)
+
+                    #print('m_token_list_1:', m_token_list_1[name])
 
                     text_dict = {}
                     text_dict['caption'] = ' '.join(motion_data['desc'])
                     text_dict['tokens'] = motion_data['text']
 
                     self.data_dict[name] = {
-                        'm_token_list': m_token_list,
+                        'm_token_list': m_token_list[name],
                         'text': [text_dict]
                     }
 
-                    print(text_dict['caption'])
+                    # print(text_dict['caption'])
                 except:
                     pass
 

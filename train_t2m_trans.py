@@ -105,6 +105,7 @@ right_num = 0
 nb_sample_train = 0
 
 ##### ---- get code ---- #####
+code_list = {}
 for batch in train_loader_token:
     pose, name = batch
     bs, seq = pose.shape[0], pose.shape[1]
@@ -112,7 +113,11 @@ for batch in train_loader_token:
     pose = pose.cuda().float() # bs, nb_joints, joints_dim, seq_len
     target = net.encode(pose)
     target = target.cpu().numpy()
-    np.save(pjoin(args.vq_dir, name[0] +'.npy'), target)
+    # np.save(pjoin(args.vq_dir, name[0] +'.npy'), target)
+
+    code_list[name[0]] = target
+
+np.savez(pjoin(args.vq_dir, 'code_data.npz'), **code_list)
 
 
 train_loader = dataset_TM_train.DATALoader(args.dataname, args.batch_size, args.nb_code, args.vq_name, unit_length=2**args.down_t)

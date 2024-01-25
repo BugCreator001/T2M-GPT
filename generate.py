@@ -1,5 +1,5 @@
 clip_text = ["pick up stoop Medium speed Forward No turning"]
-clip_text = ["hands on head turn Fast Forward right Turn right"]
+clip_text = ["equipt walk Fast Right No turning"]
 
 
 import sys
